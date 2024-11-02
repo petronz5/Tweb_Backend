@@ -24,6 +24,14 @@ public class Orders {
         this.status = status;
     }
 
+    public void setOrderDate(LocalDateTime orderDate) {
+        this.orderDate = orderDate;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
     public void setUserId(int userId) {
         this.userId = userId;
     }

@@ -26,9 +26,10 @@ public class LoginServlet extends HttpServlet {
 
 
     public void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");  // Frontend gira su localhost:3000
+        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");  // Sostituisci con il tuo frontend
+        response.setHeader("Access-Control-Allow-Credentials", "true");
         response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
         response.setContentType("application/json");
         PrintWriter out = response.getWriter();
@@ -64,9 +65,10 @@ public class LoginServlet extends HttpServlet {
     }
 
     public void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");  // Frontend gira su localhost:3000
+        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");  // Sostituisci con il tuo frontend
+        response.setHeader("Access-Control-Allow-Credentials", "true");
         response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
         if (request.getServletPath().equals(LoginService.LOGIN_PATH)) {
             response.setContentType("application/json");
             BufferedReader in = request.getReader();
@@ -108,6 +110,14 @@ public class LoginServlet extends HttpServlet {
             PrintWriter out = response.getWriter();
             out.println(result);
         } else response.sendError(HttpServletResponse.SC_NOT_FOUND);
+    }
+
+    @Override
+    protected void doOptions(HttpServletRequest request, HttpServletResponse response) {
+        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");  // Sostituisci con il tuo frontend
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     }
 
 

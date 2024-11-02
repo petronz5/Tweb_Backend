@@ -1,6 +1,7 @@
 package tweb.titancommerce;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -8,7 +9,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import tweb.titancommerce.db.PoolingPersistenceManager;
 import tweb.titancommerce.models.Cart;
-import tweb.titancommerce.models.Users;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -26,85 +26,108 @@ public class UserCartServlet extends HttpServlet {
         gson = new Gson();
     }
 
-    // GET: Recupera il carrello dell'utente o i dettagli dell'utente
+    @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");  // Frontend gira su localhost:3000
-        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
+        setCorsHeaders(response);
         response.setContentType("application/json");
-        PrintWriter out = response.getWriter();
-        int userId = Integer.parseInt(request.getParameter("userId"));
 
-        try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
-            // Recupera il carrello dell'utente
-            List<Cart> cartItems = Cart.loadByUserId(userId, conn);
-            out.println(gson.toJson(cartItems));
+        try {
+            int userId = Integer.parseInt(request.getParameter("userId"));
+
+            try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
+                // Carica il carrello dal database
+                List<Cart> cartItems = Cart.loadByUserId(userId, conn);
+                String cartJson = gson.toJson(cartItems);
+                response.getWriter().write(cartJson);
+                response.setStatus(HttpServletResponse.SC_OK);
+            }
+        } catch (NumberFormatException e) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid user ID format");
         } catch (SQLException e) {
-            throw new ServletException("Error retrieving cart", e);
+            e.printStackTrace();
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error retrieving cart items");
         }
     }
 
-    // Aggiungere o modificare un prodotto nel carrello
+
+    // PUT: Aggiungere o modificare un prodotto nel carrello
+    @Override
     protected void doPut(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");  // Frontend gira su localhost:3000
-        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+        setCorsHeaders(response);
 
-        String role = (String) request.getSession().getAttribute("role");
+        try (BufferedReader reader = request.getReader();
+             Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
 
-        if (!"customer".equals(role)) {
-            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Only customers can modify the cart.");
-            return;
-        }
+            // Parsing del JSON del corpo della richiesta
+            Cart cartItem;
+            try {
+                cartItem = gson.fromJson(reader, Cart.class);
+            } catch (JsonSyntaxException e) {
+                response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid JSON format");
+                return;
+            }
 
-        BufferedReader in = request.getReader();
-        Cart cartItem = gson.fromJson(in, Cart.class);
+            if (cartItem == null || cartItem.getUser_id() == 0 || cartItem.getProduct_id() == 0) {
+                response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Missing user_id or product_id");
+                return;
+            }
 
-        try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
-            boolean updated = cartItem.updateQuantity(conn);
+            // Aggiunge o aggiorna il prodotto nel carrello
+            boolean updated = cartItem.addToCart(conn);
             if (updated) {
                 response.setStatus(HttpServletResponse.SC_OK);
+                response.getWriter().write("Cart updated successfully");
             } else {
-                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error updating cart quantity");
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to update cart");
             }
         } catch (SQLException e) {
-            throw new ServletException("Error updating cart", e);
+            e.printStackTrace();
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Database error occurred");
         }
     }
 
-    // Rimuovere un prodotto dal carrello
+    // DELETE: Rimuovere un prodotto dal carrello
+    @Override
     protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");  // Frontend gira su localhost:3000
-        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+        setCorsHeaders(response);
 
-        String role = (String) request.getSession().getAttribute("role");
+        int userId;
+        int productId;
 
-        if (!"customer".equals(role)) {
-            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Only customers can remove products from the cart.");
+        try {
+            userId = Integer.parseInt(request.getParameter("user_id"));
+            productId = Integer.parseInt(request.getParameter("product_id"));
+        } catch (NumberFormatException e) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid userId or productId");
             return;
         }
 
-        int userId = Integer.parseInt(request.getParameter("userId"));
-        int productId = Integer.parseInt(request.getParameter("productId"));
-
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
-            Cart cartItem = new Cart(userId, productId, 0);
+            Cart cartItem = new Cart(userId , productId , 0);
             boolean deleted = cartItem.delete(conn);
             if (deleted) {
                 response.setStatus(HttpServletResponse.SC_OK);
+                response.getWriter().write("Item removed from cart");
             } else {
                 response.sendError(HttpServletResponse.SC_NOT_FOUND, "Item not found in cart");
             }
         } catch (SQLException e) {
-            throw new ServletException("Error deleting from cart", e);
+            e.printStackTrace();
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error deleting item from cart");
         }
     }
 
+    // Gestione delle opzioni pre-flight per il CORS
+    @Override
+    protected void doOptions(HttpServletRequest request, HttpServletResponse response) {
+        setCorsHeaders(response);
+        response.setStatus(HttpServletResponse.SC_OK);
+    }
 
-
-
-    public void destroy() {
+    private void setCorsHeaders(HttpServletResponse response) {
+        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     }
 }
