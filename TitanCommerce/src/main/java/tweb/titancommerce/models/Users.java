@@ -2,10 +2,7 @@ package tweb.titancommerce.models;
 
 import tweb.titancommerce.db.PoolingPersistenceManager;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,35 +12,50 @@ public class Users {
     private String password;
     private String email;
     private String role; // "admin", "customer"
+    private String firstName; // nome
+    private String lastName;  // cognome
+    private Date birthDate;   // data_di_nascita
+    private Timestamp createdAt; // created_at
+    private String codiceFiscale;
+    private String sesso;
 
-    // Costruttori, Getter e Setter
+    // Costruttori
     public Users() {}
 
-    public Users(int id, String username, String password, String email, String role) {
+    public Users(int id, String username, String password, String email, String role,
+                 String firstName, String lastName, Date birthDate, Timestamp createdAt,
+                 String codiceFiscale, String sesso) {
         this.id = id;
         this.username = username;
         this.password = password;
         this.email = email;
         this.role = role;
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.birthDate = birthDate;
+        this.createdAt = createdAt;
+        this.codiceFiscale = codiceFiscale;
+        this.sesso = sesso;
     }
 
-
+    // Getter e Setter
     public int getId() {
         return id;
-    }
-
-    public void setId(int id) {
-        this.id = id;
     }
 
     public String getUsername() {
         return username;
     }
 
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
     public String getPassword() {
         return password;
     }
 
+    // Nota: per sicurezza, evita di avere un getter per la password
     public void setPassword(String password) {
         this.password = password;
     }
@@ -52,8 +64,64 @@ public class Users {
         return email;
     }
 
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
     public String getRole() {
         return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
+    }
+
+    public String getFirstName() {
+        return firstName;
+    }
+
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
+    }
+
+    public String getLastName() {
+        return lastName;
+    }
+
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
+    }
+
+    public Date getBirthDate() {
+        return birthDate;
+    }
+
+    public void setBirthDate(Date birthDate) {
+        this.birthDate = birthDate;
+    }
+
+    public Timestamp getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Timestamp createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public String getCodiceFiscale() {
+        return codiceFiscale;
+    }
+
+    public void setCodiceFiscale(String codiceFiscale) {
+        this.codiceFiscale = codiceFiscale;
+    }
+
+    public String getSesso() {
+        return sesso;
+    }
+
+    public void setSesso(String sesso) {
+        this.sesso = sesso;
     }
 
     // Metodo per validare le credenziali
@@ -101,15 +169,21 @@ public class Users {
         return role;
     }
 
-
     // Metodo per salvare un nuovo utente
     public int saveAsNew(Connection conn) throws SQLException {
-        String query = "INSERT INTO users (username, password, email, role) VALUES (?, ?, ?, ?) RETURNING id";
+        String query = "INSERT INTO users (username, password, email, role, nome, cognome, data_di_nascita, created_at, codice_fiscale, sesso) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id";
         try (PreparedStatement st = conn.prepareStatement(query)) {
             st.setString(1, username);
             st.setString(2, password);
             st.setString(3, email);
             st.setString(4, role);
+            st.setString(5, firstName);
+            st.setString(6, lastName);
+            st.setDate(7, birthDate);
+            st.setTimestamp(8, createdAt);
+            st.setString(9, codiceFiscale);
+            st.setString(10, sesso);
             ResultSet rs = st.executeQuery();
             if (rs.next()) {
                 this.id = rs.getInt("id");
@@ -121,13 +195,18 @@ public class Users {
 
     // Metodo per aggiornare un utente esistente
     public boolean saveUpdate(Connection conn) throws SQLException {
-        String query = "UPDATE users SET username = ?, password = ?, email = ?, role = ? WHERE id = ?";
+        String query = "UPDATE users SET username = ?, password = ?, email = ?, role = ?, nome = ?, cognome = ?, data_di_nascita = ?, codice_fiscale = ?, sesso = ? WHERE id = ?";
         try (PreparedStatement st = conn.prepareStatement(query)) {
             st.setString(1, username);
             st.setString(2, password);
             st.setString(3, email);
             st.setString(4, role);
-            st.setInt(5, id);
+            st.setString(5, firstName);
+            st.setString(6, lastName);
+            st.setDate(7, birthDate);
+            st.setString(8, codiceFiscale);
+            st.setString(9, sesso);
+            st.setInt(10, id);
             return st.executeUpdate() > 0;
         }
     }
@@ -148,21 +227,46 @@ public class Users {
             st.setInt(1, id);
             ResultSet rs = st.executeQuery();
             if (rs.next()) {
-                return new Users(rs.getInt("id"), rs.getString("username"),
-                        rs.getString("password"), rs.getString("email"), rs.getString("role"));
+                Users user = new Users();
+                user.setId(rs.getInt("id"));
+                user.setUsername(rs.getString("username"));
+                user.setPassword(rs.getString("password"));
+                user.setEmail(rs.getString("email"));
+                user.setRole(rs.getString("role"));
+                user.setFirstName(rs.getString("nome"));
+                user.setLastName(rs.getString("cognome"));
+                user.setBirthDate(rs.getDate("data_di_nascita"));
+                user.setCreatedAt(rs.getTimestamp("created_at"));
+                user.setCodiceFiscale(rs.getString("codice_fiscale"));
+                user.setSesso(rs.getString("sesso"));
+                // Imposta altri campi se necessario
+                return user;
             }
         }
         return null;
     }
 
+    // Metodo per caricare un utente per username
     public static Users loadByUsername(String username, Connection conn) throws SQLException {
         String query = "SELECT * FROM users WHERE username = ?";
         try (PreparedStatement st = conn.prepareStatement(query)) {
             st.setString(1, username);
             ResultSet rs = st.executeQuery();
             if (rs.next()) {
-                return new Users(rs.getInt("id"), rs.getString("username"),
-                        rs.getString("password"), rs.getString("email"), rs.getString("role"));
+                Users user = new Users();
+                user.setId(rs.getInt("id"));
+                user.setUsername(rs.getString("username"));
+                user.setPassword(rs.getString("password"));
+                user.setEmail(rs.getString("email"));
+                user.setRole(rs.getString("role"));
+                user.setFirstName(rs.getString("nome"));
+                user.setLastName(rs.getString("cognome"));
+                user.setBirthDate(rs.getDate("data_di_nascita"));
+                user.setCreatedAt(rs.getTimestamp("created_at"));
+                user.setCodiceFiscale(rs.getString("codice_fiscale"));
+                user.setSesso(rs.getString("sesso"));
+                // Imposta altri campi se necessario
+                return user;
             }
         }
         return null;
@@ -176,11 +280,26 @@ public class Users {
              ResultSet rs = st.executeQuery()) {
 
             while (rs.next()) {
-                Users user = new Users(rs.getInt("id"), rs.getString("username"),
-                        rs.getString("password"), rs.getString("email"), rs.getString("role"));
+                Users user = new Users();
+                user.setId(rs.getInt("id"));
+                user.setUsername(rs.getString("username"));
+                user.setPassword(rs.getString("password"));
+                user.setEmail(rs.getString("email"));
+                user.setRole(rs.getString("role"));
+                user.setFirstName(rs.getString("nome"));
+                user.setLastName(rs.getString("cognome"));
+                user.setBirthDate(rs.getDate("data_di_nascita"));
+                user.setCreatedAt(rs.getTimestamp("created_at"));
+                user.setCodiceFiscale(rs.getString("codice_fiscale"));
+                user.setSesso(rs.getString("sesso"));
                 usersList.add(user);
             }
         }
         return usersList;
+    }
+
+    // Setter per l'ID (potrebbe essere privato se non vuoi che sia modificato dall'esterno)
+    public void setId(int id) {
+        this.id = id;
     }
 }
