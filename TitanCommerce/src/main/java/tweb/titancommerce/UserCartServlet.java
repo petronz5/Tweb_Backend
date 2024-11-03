@@ -9,6 +9,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import tweb.titancommerce.db.PoolingPersistenceManager;
 import tweb.titancommerce.models.Cart;
+import tweb.titancommerce.login.LoginService;
+import tweb.titancommerce.models.Users;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -31,32 +33,43 @@ public class UserCartServlet extends HttpServlet {
         setCorsHeaders(response);
         response.setContentType("application/json");
 
-        try {
-            int userId = Integer.parseInt(request.getParameter("userId"));
+        // Ottieni l'username dalla sessione
+        String username = LoginService.getCurrentLogin(request.getSession());
+        if (username == null || username.isEmpty()) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in");
+            return;
+        }
 
-            try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
-                // Carica il carrello dal database
-                List<Cart> cartItems = Cart.loadByUserId(userId, conn);
-                String cartJson = gson.toJson(cartItems);
-                response.getWriter().write(cartJson);
-                response.setStatus(HttpServletResponse.SC_OK);
-            }
-        } catch (NumberFormatException e) {
-            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid user ID format");
+        try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
+            // Carica l'ID dell'utente (puoi adattare questo secondo come l'ID è collegato all'username)
+            int userId = Users.getUserIdByUsernameConn(username, conn); // Metodo che devi implementare in Users
+
+            // Carica il carrello dal database
+            List<Cart> cartItems = Cart.loadByUserId(userId, conn);
+            String cartJson = gson.toJson(cartItems);
+            response.getWriter().write(cartJson);
+            response.setStatus(HttpServletResponse.SC_OK);
         } catch (SQLException e) {
             e.printStackTrace();
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error retrieving cart items");
         }
     }
 
-
-    // PUT: Aggiungere o modificare un prodotto nel carrello
     @Override
     protected void doPut(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         setCorsHeaders(response);
 
+        // Ottieni l'username dalla sessione
+        String username = LoginService.getCurrentLogin(request.getSession());
+        if (username == null || username.isEmpty()) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in");
+            return;
+        }
+
         try (BufferedReader reader = request.getReader();
              Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
+
+            int userId = Users.getUserIdByUsernameConn(username, conn); // Metodo che devi implementare in Users
 
             // Parsing del JSON del corpo della richiesta
             Cart cartItem;
@@ -67,13 +80,14 @@ public class UserCartServlet extends HttpServlet {
                 return;
             }
 
-            if (cartItem == null || cartItem.getUser_id() == 0 || cartItem.getProduct_id() == 0) {
-                response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Missing user_id or product_id");
+            if (cartItem == null || cartItem.getProduct_id() == 0) {
+                response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Missing product_id");
                 return;
             }
 
-            // Aggiunge o aggiorna il prodotto nel carrello
+            cartItem.setUser_id(userId); // Imposta l'ID utente dal login
             boolean updated = cartItem.addToCart(conn);
+
             if (updated) {
                 response.setStatus(HttpServletResponse.SC_OK);
                 response.getWriter().write("Cart updated successfully");
@@ -86,25 +100,30 @@ public class UserCartServlet extends HttpServlet {
         }
     }
 
-    // DELETE: Rimuovere un prodotto dal carrello
     @Override
     protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         setCorsHeaders(response);
 
-        int userId;
-        int productId;
+        // Ottieni l'username dalla sessione
+        String username = LoginService.getCurrentLogin(request.getSession());
+        if (username == null || username.isEmpty()) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in");
+            return;
+        }
 
+        int productId;
         try {
-            userId = Integer.parseInt(request.getParameter("user_id"));
             productId = Integer.parseInt(request.getParameter("product_id"));
         } catch (NumberFormatException e) {
-            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid userId or productId");
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid productId");
             return;
         }
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
-            Cart cartItem = new Cart(userId , productId , 0);
+            int userId = Users.getUserIdByUsernameConn(username, conn); // Metodo che devi implementare in Users
+            Cart cartItem = new Cart(userId, productId, 0);
             boolean deleted = cartItem.delete(conn);
+
             if (deleted) {
                 response.setStatus(HttpServletResponse.SC_OK);
                 response.getWriter().write("Item removed from cart");
@@ -117,7 +136,6 @@ public class UserCartServlet extends HttpServlet {
         }
     }
 
-    // Gestione delle opzioni pre-flight per il CORS
     @Override
     protected void doOptions(HttpServletRequest request, HttpServletResponse response) {
         setCorsHeaders(response);

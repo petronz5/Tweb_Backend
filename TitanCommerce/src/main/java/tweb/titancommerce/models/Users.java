@@ -220,6 +220,36 @@ public class Users {
         }
     }
 
+    public static int getUserIdByUsername(String username) throws SQLException {
+        Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection();
+        try (PreparedStatement stmt = conn.prepareStatement("SELECT id FROM users WHERE username = ?")) {
+            stmt.setString(1, username);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("id");
+            } else {
+                throw new SQLException("User ID not found for username: " + username);
+            }
+        } finally {
+            conn.close();
+        }
+    }
+
+    public static int getUserIdByUsernameConn(String username, Connection conn) throws SQLException {
+        String query = "SELECT id FROM users WHERE username = ?";
+        try (PreparedStatement st = conn.prepareStatement(query)) {
+            st.setString(1, username);
+            ResultSet rs = st.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("id");
+            } else {
+                throw new SQLException("User not found");
+            }
+        }
+    }
+
+
+
     // Metodo per caricare un utente per ID
     public static Users loadById(int id, Connection conn) throws SQLException {
         String query = "SELECT * FROM users WHERE id = ?";

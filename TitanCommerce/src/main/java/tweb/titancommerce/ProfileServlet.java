@@ -35,12 +35,15 @@ public class ProfileServlet extends HttpServlet {
 
         // Verifica se l'utente è loggato
         HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("userId") == null) {
+        if (session == null || session.getAttribute("id") == null) {
+            System.out.println("Session not found or user not logged in");
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in.");
             return;
+        }else{
+            System.out.println("User ID: " + session.getAttribute("id"));
         }
 
-        int userId = (int) session.getAttribute("userId");
+        int userId = (int) session.getAttribute("id");
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
             // Recupera i dettagli dell'utente dal database
