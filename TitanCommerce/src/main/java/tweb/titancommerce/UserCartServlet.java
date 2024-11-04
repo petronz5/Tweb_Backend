@@ -14,7 +14,6 @@ import tweb.titancommerce.models.Users;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
@@ -33,7 +32,6 @@ public class UserCartServlet extends HttpServlet {
         setCorsHeaders(response);
         response.setContentType("application/json");
 
-        // Ottieni l'username dalla sessione
         String username = LoginService.getCurrentLogin(request.getSession());
         if (username == null || username.isEmpty()) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in");
@@ -41,10 +39,8 @@ public class UserCartServlet extends HttpServlet {
         }
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
-            // Carica l'ID dell'utente (puoi adattare questo secondo come l'ID è collegato all'username)
-            int userId = Users.getUserIdByUsernameConn(username, conn); // Metodo che devi implementare in Users
+            int userId = Users.getUserIdByUsernameConn(username, conn);
 
-            // Carica il carrello dal database
             List<Cart> cartItems = Cart.loadByUserId(userId, conn);
             String cartJson = gson.toJson(cartItems);
             response.getWriter().write(cartJson);
@@ -59,7 +55,6 @@ public class UserCartServlet extends HttpServlet {
     protected void doPut(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         setCorsHeaders(response);
 
-        // Ottieni l'username dalla sessione
         String username = LoginService.getCurrentLogin(request.getSession());
         if (username == null || username.isEmpty()) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in");
@@ -69,9 +64,8 @@ public class UserCartServlet extends HttpServlet {
         try (BufferedReader reader = request.getReader();
              Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
 
-            int userId = Users.getUserIdByUsernameConn(username, conn); // Metodo che devi implementare in Users
+            int userId = Users.getUserIdByUsernameConn(username, conn);
 
-            // Parsing del JSON del corpo della richiesta
             Cart cartItem;
             try {
                 cartItem = gson.fromJson(reader, Cart.class);
@@ -85,7 +79,7 @@ public class UserCartServlet extends HttpServlet {
                 return;
             }
 
-            cartItem.setUser_id(userId); // Imposta l'ID utente dal login
+            cartItem.setUser_id(userId);
             boolean updated = cartItem.addToCart(conn);
 
             if (updated) {
@@ -104,7 +98,6 @@ public class UserCartServlet extends HttpServlet {
     protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         setCorsHeaders(response);
 
-        // Ottieni l'username dalla sessione
         String username = LoginService.getCurrentLogin(request.getSession());
         if (username == null || username.isEmpty()) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in");
@@ -120,7 +113,7 @@ public class UserCartServlet extends HttpServlet {
         }
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
-            int userId = Users.getUserIdByUsernameConn(username, conn); // Metodo che devi implementare in Users
+            int userId = Users.getUserIdByUsernameConn(username, conn);
             Cart cartItem = new Cart(userId, productId, 0);
             boolean deleted = cartItem.delete(conn);
 

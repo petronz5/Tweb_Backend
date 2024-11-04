@@ -12,6 +12,8 @@ public class Cart {
     private int user_id;
     private int product_id;
     private int quantity;
+    private String productName;
+    private double productPrice;
 
     // Costruttori, getter e setter
     public Cart() {}
@@ -61,6 +63,47 @@ public class Cart {
         this.quantity = quantity;
     }
 
+    public String getProductName() {
+        return productName;
+    }
+
+    public void setProductName(String productName) {
+        this.productName = productName;
+    }
+
+    public double getProductPrice() {
+        return productPrice;
+    }
+
+    public void setProductPrice(double productPrice) {
+        this.productPrice = productPrice;
+    }
+
+    // Metodo statico per caricare il carrello dal database
+    public static List<Cart> loadByUserId(int user_id, Connection conn) throws SQLException {
+        List<Cart> cartList = new ArrayList<>();
+        String query = "SELECT c.id, c.user_id, c.product_id, c.quantity, p.name AS product_name, p.price AS product_price " +
+                "FROM cart c " +
+                "JOIN products p ON c.product_id = p.id " +
+                "WHERE c.user_id = ?";
+        try (PreparedStatement st = conn.prepareStatement(query)) {
+            st.setInt(1, user_id);
+            ResultSet rs = st.executeQuery();
+            while (rs.next()) {
+                Cart cartItem = new Cart(
+                        rs.getInt("id"),
+                        rs.getInt("user_id"),
+                        rs.getInt("product_id"),
+                        rs.getInt("quantity")
+                );
+                cartItem.setProductName(rs.getString("product_name"));
+                cartItem.setProductPrice(rs.getDouble("product_price"));
+                cartList.add(cartItem);
+            }
+        }
+        return cartList;
+    }
+
     // Metodo per aggiungere o aggiornare un prodotto nel carrello
     public boolean addToCart(Connection conn) throws SQLException {
         String query = "INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, ?) " +
@@ -88,25 +131,6 @@ public class Cart {
             st.setInt(3, this.product_id);
             return st.executeUpdate() > 0;
         }
-    }
-
-    // Metodo per caricare il carrello di un utente
-    public static List<Cart> loadByUserId(int user_id, Connection conn) throws SQLException {
-        List<Cart> cartList = new ArrayList<>();
-        String query = "SELECT * FROM cart WHERE user_id = ?";
-        try (PreparedStatement st = conn.prepareStatement(query)) {
-            st.setInt(1, user_id);
-            ResultSet rs = st.executeQuery();
-            while (rs.next()) {
-                cartList.add(new Cart(
-                        rs.getInt("id"),
-                        rs.getInt("user_id"),
-                        rs.getInt("product_id"),
-                        rs.getInt("quantity")
-                ));
-            }
-        }
-        return cartList;
     }
 
     // Metodo per rimuovere un prodotto dal carrello
