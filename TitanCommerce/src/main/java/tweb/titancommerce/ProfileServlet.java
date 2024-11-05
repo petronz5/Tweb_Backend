@@ -22,18 +22,18 @@ public class ProfileServlet extends HttpServlet {
         gson = new Gson();
     }
 
-    // GET: Recupera i dettagli del profilo dell'utente loggato
+    // GET: Retrieve logged-in user's profile details
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        // Imposta gli header CORS
+        // Set CORS headers
         response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
         response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
         response.setHeader("Access-Control-Allow-Headers", "Content-Type");
-        response.setHeader("Access-Control-Allow-Credentials", "true"); // Se usi le credenziali
+        response.setHeader("Access-Control-Allow-Credentials", "true");
 
         response.setContentType("application/json");
         PrintWriter out = response.getWriter();
 
-        // Verifica se l'utente è loggato
+        // Check if user is logged in
         HttpSession session = request.getSession(false);
         if (session == null || session.getAttribute("userId") == null) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in.");
@@ -43,17 +43,19 @@ public class ProfileServlet extends HttpServlet {
         int userId = (int) session.getAttribute("userId");
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
-            // Recupera i dettagli dell'utente dal database
+            // Retrieve user details from the database
             Users user = Users.loadById(userId, conn);
             if (user != null) {
-                // Crea un oggetto JSON con i dettagli necessari
+                // Create a JSON object with the required details
                 JsonObject userDetails = new JsonObject();
                 userDetails.addProperty("username", user.getUsername());
                 userDetails.addProperty("email", user.getEmail());
                 userDetails.addProperty("firstName", user.getFirstName());
                 userDetails.addProperty("lastName", user.getLastName());
-                userDetails.addProperty("creationDate", user.getCreatedAt().toString()); // Assicurati che sia formattata correttamente
-                userDetails.addProperty("birthDate", user.getBirthDate().toString());    // Assicurati che sia formattata correttamente
+                userDetails.addProperty("creationDate", user.getCreatedAt().toString());
+                userDetails.addProperty("birthDate", user.getBirthDate().toString());
+                userDetails.addProperty("role", user.getRole());
+                userDetails.addProperty("gender", user.getSesso());
 
                 out.println(gson.toJson(userDetails));
             } else {
@@ -64,9 +66,9 @@ public class ProfileServlet extends HttpServlet {
         }
     }
 
-    // Gestione delle richieste OPTIONS per CORS preflight
+    // Handle OPTIONS requests for CORS preflight
     protected void doOptions(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        // Imposta gli header CORS
+        // Set CORS headers
         response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
         response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
         response.setHeader("Access-Control-Allow-Headers", "Content-Type");
