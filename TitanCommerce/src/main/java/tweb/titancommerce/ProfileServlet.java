@@ -54,6 +54,8 @@ public class ProfileServlet extends HttpServlet {
                 userDetails.addProperty("lastName", user.getLastName());
                 userDetails.addProperty("creationDate", user.getCreatedAt().toString()); // Assicurati che sia formattata correttamente
                 userDetails.addProperty("birthDate", user.getBirthDate().toString());    // Assicurati che sia formattata correttamente
+                userDetails.addProperty("role", user.getRole()); // Aggiunto il campo ruolo
+                userDetails.addProperty("gender", user.getSesso()); // Aggiunto il campo sesso
 
                 out.println(gson.toJson(userDetails));
             } else {
