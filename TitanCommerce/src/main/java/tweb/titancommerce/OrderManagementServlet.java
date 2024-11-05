@@ -7,10 +7,7 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import tweb.titancommerce.db.PoolingPersistenceManager;
-import tweb.titancommerce.models.Category;
-import tweb.titancommerce.models.Orders;
-import tweb.titancommerce.models.OrderDetails;
-import tweb.titancommerce.models.Products;
+import tweb.titancommerce.models.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -30,6 +27,9 @@ public class OrderManagementServlet extends HttpServlet {
 
     // GET: Recupera un ordine, lista di ordini, o ordini filtrati per utente o stato
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");  // Frontend gira su localhost:3000
+        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type");
         response.setContentType("application/json");
         PrintWriter out = response.getWriter();
 
@@ -65,6 +65,9 @@ public class OrderManagementServlet extends HttpServlet {
     }
     // POST: Crea un nuovo ordine
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");  // Frontend gira su localhost:3000
+        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type");
         BufferedReader in = request.getReader();
         Orders newOrder = gson.fromJson(in, Orders.class);
 
@@ -81,27 +84,39 @@ public class OrderManagementServlet extends HttpServlet {
         }
     }
 
-    // PUT: Aggiorna lo stato di un ordine
     protected void doPut(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");  // Sostituisci con il tuo frontend
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+        // Ottieni l'userId dai parametri della query string
+        int userId = Integer.parseInt(request.getParameter("userId"));
+
         BufferedReader in = request.getReader();
-        Orders order = gson.fromJson(in, Orders.class);
+        Cart cartItem = gson.fromJson(in, Cart.class);
+
+        // Aggiorna il carrello utilizzando l'oggetto cartItem e l'userId
+        //cartItem.setUserId(userId);  // Assicura che userId sia impostato correttamente
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
-            boolean updated = order.saveUpdate(conn);
+            boolean updated = cartItem.updateQuantity(conn);
             if (updated) {
                 response.setStatus(HttpServletResponse.SC_OK);
-                response.getWriter().println(gson.toJson(order));
             } else {
-                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error updating order");
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Errore aggiornamento quantità nel carrello");
             }
         } catch (SQLException e) {
-            throw new ServletException("Error updating order", e);
+            throw new ServletException("Errore aggiornamento carrello", e);
         }
     }
 
 
     // DELETE: Cancella un ordine
     protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");  // Frontend gira su localhost:3000
+        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type");
         int orderId = Integer.parseInt(request.getParameter("id"));
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {

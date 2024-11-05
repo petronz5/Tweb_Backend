@@ -8,49 +8,140 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Cart {
-    private int userId;
-    private int productId;
+    private int id;
+    private int user_id;
+    private int product_id;
     private int quantity;
+    private String productName;
+    private double productPrice;
 
     // Costruttori, getter e setter
     public Cart() {}
 
-    public Cart(int userId, int productId, int quantity) {
-        this.userId = userId;
-        this.productId = productId;
+    public Cart(int id, int user_id, int product_id, int quantity) {
+        this.id = id;
+        this.user_id = user_id;
+        this.product_id = product_id;
         this.quantity = quantity;
     }
 
-    public void setUserId(int userId) {
-        this.userId = userId;
+    public Cart(int user_id, int product_id, int quantity) {
+        this.user_id = user_id;
+        this.product_id = product_id;
+        this.quantity = quantity;
     }
 
-    public void setProductId(int productId) {
-        this.productId = productId;
+    public int getId() {
+        return id;
     }
 
-    // Metodo per aggiungere un prodotto al carrello
-    // Metodo per aggiungere un nuovo elemento al carrello
-    // Metodo per aggiungere un prodotto al carrello (nuovo)
-    public boolean addToCart(Connection conn) throws SQLException {
-        String query = "INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, ?) ON CONFLICT (user_id, product_id) DO UPDATE SET quantity = cart.quantity + EXCLUDED.quantity";
+    public int getUser_id() {
+        return user_id;
+    }
+
+    public int getProduct_id() {
+        return product_id;
+    }
+
+    public int getQuantity() {
+        return quantity;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public void setUser_id(int user_id) {
+        this.user_id = user_id;
+    }
+
+    public void setProduct_id(int product_id) {
+        this.product_id = product_id;
+    }
+
+    public void setQuantity(int quantity) {
+        this.quantity = quantity;
+    }
+
+    public String getProductName() {
+        return productName;
+    }
+
+    public void setProductName(String productName) {
+        this.productName = productName;
+    }
+
+    public double getProductPrice() {
+        return productPrice;
+    }
+
+    public void setProductPrice(double productPrice) {
+        this.productPrice = productPrice;
+    }
+
+    // Metodo statico per caricare il carrello dal database
+    public static List<Cart> loadByUserId(int user_id, Connection conn) throws SQLException {
+        List<Cart> cartList = new ArrayList<>();
+        String query = "SELECT c.id, c.user_id, c.product_id, c.quantity, p.name AS product_name, p.price AS product_price " +
+                "FROM cart c " +
+                "JOIN products p ON c.product_id = p.id " +
+                "WHERE c.user_id = ?";
         try (PreparedStatement st = conn.prepareStatement(query)) {
-            st.setInt(1, userId);
-            st.setInt(2, productId);
-            st.setInt(3, quantity);
-            return st.executeUpdate() > 0;
+            st.setInt(1, user_id);
+            ResultSet rs = st.executeQuery();
+            while (rs.next()) {
+                Cart cartItem = new Cart(
+                        rs.getInt("id"),
+                        rs.getInt("user_id"),
+                        rs.getInt("product_id"),
+                        rs.getInt("quantity")
+                );
+                cartItem.setProductName(rs.getString("product_name"));
+                cartItem.setProductPrice(rs.getDouble("product_price"));
+                cartList.add(cartItem);
+            }
+        }
+        return cartList;
+    }
+
+    // Metodo per aggiungere o aggiornare un prodotto nel carrello
+    public boolean addToCart(Connection conn) throws SQLException {
+
+        String selectQuery = "SELECT id, quantity FROM cart WHERE user_id = ? AND product_id = ?";
+        try (PreparedStatement selectSt = conn.prepareStatement(selectQuery)) {
+            selectSt.setInt(1, user_id);
+            selectSt.setInt(2, product_id);
+            ResultSet rs = selectSt.executeQuery();
+
+            if (rs.next()) {
+                int existingId = rs.getInt("id");
+                int existingQuantity = rs.getInt("quantity");
+                int newQuantity = existingQuantity + this.quantity;
+                String updateQuery = "UPDATE cart SET quantity = ? WHERE id = ?";
+                try (PreparedStatement updateSt = conn.prepareStatement(updateQuery)) {
+                    updateSt.setInt(1, newQuantity);
+                    updateSt.setInt(2, existingId);
+                    return updateSt.executeUpdate() > 0;
+                }
+            } else {
+                String insertQuery = "INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, ?)";
+                try (PreparedStatement insertSt = conn.prepareStatement(insertQuery)) {
+                    insertSt.setInt(1, user_id);
+                    insertSt.setInt(2, product_id);
+                    insertSt.setInt(3, quantity);
+                    return insertSt.executeUpdate() > 0;
+                }
+            }
         }
     }
 
-
-
-    // Metodo per aggiornare il carrello
-    public boolean saveUpdate(Connection conn) throws SQLException {
+    // Metodo per aggiornare la quantità di un prodotto nel carrello
+    public boolean updateQuantity(Connection conn) throws SQLException {
         String query = "UPDATE cart SET quantity = ? WHERE user_id = ? AND product_id = ?";
         try (PreparedStatement st = conn.prepareStatement(query)) {
-            st.setInt(1, quantity);
-            st.setInt(2, userId);
-            st.setInt(3, productId);
+            st.setInt(1, this.quantity);
+            st.setInt(2, this.user_id);
+            st.setInt(3, this.product_id);
             return st.executeUpdate() > 0;
         }
     }
@@ -59,48 +150,9 @@ public class Cart {
     public boolean delete(Connection conn) throws SQLException {
         String query = "DELETE FROM cart WHERE user_id = ? AND product_id = ?";
         try (PreparedStatement st = conn.prepareStatement(query)) {
-            st.setInt(1, userId);
-            st.setInt(2, productId);
+            st.setInt(1, user_id);
+            st.setInt(2, product_id);
             return st.executeUpdate() > 0;
         }
-    }
-
-    public boolean updateQuantity(Connection conn) throws SQLException {
-        String query = "UPDATE cart SET quantity = ? WHERE user_id = ? AND product_id = ?";
-        try (PreparedStatement st = conn.prepareStatement(query)) {
-            st.setInt(1, this.quantity);
-            st.setInt(2, this.userId);
-            st.setInt(3, this.productId);
-            return st.executeUpdate() > 0;
-        }
-    }
-
-
-    // Metodo per caricare il carrello di un utente
-    public static List<Cart> loadByUserId(int userId, Connection conn) throws SQLException {
-        List<Cart> cartList = new ArrayList<>();
-        String query = "SELECT * FROM cart WHERE user_id = ?";
-        try (PreparedStatement st = conn.prepareStatement(query)) {
-            st.setInt(1, userId);
-            ResultSet rs = st.executeQuery();
-            while (rs.next()) {
-                cartList.add(new Cart(rs.getInt("user_id"),
-                        rs.getInt("product_id"), rs.getInt("quantity")));
-            }
-        }
-        return cartList;
-    }
-
-    public static int countByUserId(int userId, Connection conn) throws SQLException {
-        String query = "SELECT COUNT(*) FROM Cart WHERE user_id = ?";
-        try (PreparedStatement stmt = conn.prepareStatement(query)) {
-            stmt.setInt(1, userId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt(1);
-                }
-            }
-        }
-        return 0;
     }
 }
