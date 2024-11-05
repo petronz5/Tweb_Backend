@@ -106,19 +106,32 @@ public class Cart {
 
     // Metodo per aggiungere o aggiornare un prodotto nel carrello
     public boolean addToCart(Connection conn) throws SQLException {
-        String query = "INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, ?) " +
-                "ON CONFLICT (user_id, product_id) DO UPDATE SET quantity = cart.quantity + EXCLUDED.quantity " +
-                "RETURNING id";
-        try (PreparedStatement st = conn.prepareStatement(query)) {
-            st.setInt(1, user_id);
-            st.setInt(2, product_id);
-            st.setInt(3, quantity);
-            ResultSet rs = st.executeQuery();
+
+        String selectQuery = "SELECT id, quantity FROM cart WHERE user_id = ? AND product_id = ?";
+        try (PreparedStatement selectSt = conn.prepareStatement(selectQuery)) {
+            selectSt.setInt(1, user_id);
+            selectSt.setInt(2, product_id);
+            ResultSet rs = selectSt.executeQuery();
+
             if (rs.next()) {
-                this.id = rs.getInt("id");
-                return true;
+                int existingId = rs.getInt("id");
+                int existingQuantity = rs.getInt("quantity");
+                int newQuantity = existingQuantity + this.quantity;
+                String updateQuery = "UPDATE cart SET quantity = ? WHERE id = ?";
+                try (PreparedStatement updateSt = conn.prepareStatement(updateQuery)) {
+                    updateSt.setInt(1, newQuantity);
+                    updateSt.setInt(2, existingId);
+                    return updateSt.executeUpdate() > 0;
+                }
+            } else {
+                String insertQuery = "INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, ?)";
+                try (PreparedStatement insertSt = conn.prepareStatement(insertQuery)) {
+                    insertSt.setInt(1, user_id);
+                    insertSt.setInt(2, product_id);
+                    insertSt.setInt(3, quantity);
+                    return insertSt.executeUpdate() > 0;
+                }
             }
-            return false;
         }
     }
 
