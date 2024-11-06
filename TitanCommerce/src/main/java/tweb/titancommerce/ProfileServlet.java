@@ -35,12 +35,15 @@ public class ProfileServlet extends HttpServlet {
 
         // Verifica se l'utente è loggato
         HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("userId") == null) {
+        if (session == null || session.getAttribute("id") == null) {
+            System.out.println("Session not found or user not logged in");
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in.");
             return;
+        }else{
+            System.out.println("User ID: " + session.getAttribute("id"));
         }
 
-        int userId = (int) session.getAttribute("userId");
+        int userId = (int) session.getAttribute("id");
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
             // Recupera i dettagli dell'utente dal database
@@ -54,8 +57,9 @@ public class ProfileServlet extends HttpServlet {
                 userDetails.addProperty("lastName", user.getLastName());
                 userDetails.addProperty("creationDate", user.getCreatedAt().toString()); // Assicurati che sia formattata correttamente
                 userDetails.addProperty("birthDate", user.getBirthDate().toString());    // Assicurati che sia formattata correttamente
-                userDetails.addProperty("role", user.getRole()); // Aggiunto il campo ruolo
-                userDetails.addProperty("gender", user.getSesso()); // Aggiunto il campo sesso
+                userDetails.addProperty("role", user.getRole());
+                userDetails.addProperty("sesso", user.getSesso());
+
 
                 out.println(gson.toJson(userDetails));
             } else {
