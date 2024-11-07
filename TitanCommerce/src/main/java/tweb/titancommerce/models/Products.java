@@ -18,12 +18,13 @@ public class Products {
     private int stock;
     private int categoryId;
     private String url_products;
+    private double sconto;
 
     // Costruttori, Getter e Setter
 
     public Products() {}
 
-    public Products(int id, String name, String description, BigDecimal price, int stock, int categoryId, String url_products) {
+    public Products(int id, String name, String description, BigDecimal price, int stock, int categoryId, String url_products, double sconto) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -31,6 +32,7 @@ public class Products {
         this.stock = stock;
         this.categoryId = categoryId;
         this.url_products = url_products;
+        this.sconto = sconto;
     }
 
     public int getId() {
@@ -65,16 +67,20 @@ public class Products {
         return description;
     }
 
+    public double getSconto() {
+        return sconto;
+    }
     // Metodo per salvare un nuovo prodotto
     public int saveAsNew(Connection conn) throws SQLException {
-        String query = "INSERT INTO products (name, description, price, stock, category_id) " +
-                "VALUES (?, ?, ?, ?, ?) RETURNING id";
+        String query = "INSERT INTO products (name, description, price, stock, category_id, sconto) " +
+                "VALUES (?, ?, ?, ?, ?, ?) RETURNING id";
         try (PreparedStatement st = conn.prepareStatement(query)) {
             st.setString(1, name);
             st.setString(2, description);
             st.setBigDecimal(3, price);
             st.setInt(4, stock);
             st.setInt(5, categoryId);
+            st.setDouble(6, sconto); // Aggiungi sconto qui
             ResultSet rs = st.executeQuery();
             if (rs.next()) {
                 this.id = rs.getInt("id");
@@ -86,17 +92,19 @@ public class Products {
 
     // Metodo per aggiornare un prodotto esistente
     public boolean saveUpdate(Connection conn) throws SQLException {
-        String query = "UPDATE products SET name = ?, description = ?, price = ?, stock = ?, category_id = ? WHERE id = ?";
+        String query = "UPDATE products SET name = ?, description = ?, price = ?, stock = ?, sconto = ?, category_id = ? WHERE id = ?";
         try (PreparedStatement st = conn.prepareStatement(query)) {
             st.setString(1, name);
             st.setString(2, description);
             st.setBigDecimal(3, price);
             st.setInt(4, stock);
-            st.setInt(5, categoryId);
-            st.setInt(6, id);
+            st.setDouble(5, sconto);
+            st.setInt(6, categoryId);
+            st.setInt(7, id);
             return st.executeUpdate() > 0;
         }
     }
+
 
     // Metodo per eliminare un prodotto
     public boolean delete(Connection conn) throws SQLException {
@@ -117,7 +125,7 @@ public class Products {
                 return new Products(rs.getInt("id"), rs.getString("name"),
                         rs.getString("description"), rs.getBigDecimal("price"),
                         rs.getInt("stock"), rs.getInt("category_id"),
-                        rs.getString("url_products"));  // Nuovo campo
+                        rs.getString("url_products"), rs.getDouble("sconto")); // Aggiungi sconto qui
             }
         }
         return null;
@@ -134,12 +142,13 @@ public class Products {
                 Products product = new Products(rs.getInt("id"), rs.getString("name"),
                         rs.getString("description"), rs.getBigDecimal("price"),
                         rs.getInt("stock"), rs.getInt("category_id"),
-                        rs.getString("url_products"));  // Nuovo campo
+                        rs.getString("url_products"), rs.getDouble("sconto")); // Aggiungi sconto qui
                 productsList.add(product);
             }
         }
         return productsList;
     }
+
 
 
     public static List<Products> searchByName(String searchQuery, Connection conn) throws SQLException {
@@ -152,13 +161,15 @@ public class Products {
                     Products product = new Products(rs.getInt("id"), rs.getString("name"),
                             rs.getString("description"), rs.getBigDecimal("price"),
                             rs.getInt("stock"), rs.getInt("category_id"),
-                            rs.getString("url_products"));  // Nuovo campo
+                            rs.getString("url_products"), rs.getDouble("sconto")); // Aggiungi sconto qui
                     productsList.add(product);
                 }
             }
         }
         return productsList;
     }
+
+
 
     public boolean decrementStock(int quantity, Connection conn) throws SQLException {
         String query = "UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?";
@@ -212,7 +223,7 @@ public class Products {
                 Products product = new Products(rs.getInt("id"), rs.getString("name"),
                         rs.getString("description"), rs.getBigDecimal("price"),
                         rs.getInt("stock"), rs.getInt("category_id"),
-                        rs.getString("url_products"));  // Nuovo campo
+                        rs.getString("url_products") , rs.getDouble("sconto"));  // Nuovo campo
                 productList.add(product);
             }
 
