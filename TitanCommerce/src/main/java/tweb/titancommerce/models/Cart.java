@@ -104,26 +104,19 @@ public class Cart {
         return cartList;
     }
 
-    // Metodo per aggiungere o aggiornare un prodotto nel carrello
-    public boolean addToCart(Connection conn) throws SQLException {
-
-        String selectQuery = "SELECT id, quantity FROM cart WHERE user_id = ? AND product_id = ?";
+    // Metodo per aggiungere un prodotto al carrello o aggiornare la quantità
+    public boolean addOrUpdateCart(Connection conn) throws SQLException {
+        String selectQuery = "SELECT id FROM cart WHERE user_id = ? AND product_id = ?";
         try (PreparedStatement selectSt = conn.prepareStatement(selectQuery)) {
             selectSt.setInt(1, user_id);
             selectSt.setInt(2, product_id);
             ResultSet rs = selectSt.executeQuery();
 
             if (rs.next()) {
-                int existingId = rs.getInt("id");
-                int existingQuantity = rs.getInt("quantity");
-                int newQuantity = existingQuantity + this.quantity;
-                String updateQuery = "UPDATE cart SET quantity = ? WHERE id = ?";
-                try (PreparedStatement updateSt = conn.prepareStatement(updateQuery)) {
-                    updateSt.setInt(1, newQuantity);
-                    updateSt.setInt(2, existingId);
-                    return updateSt.executeUpdate() > 0;
-                }
+                // Se l'elemento esiste, aggiorna la quantità chiamando updateQuantity
+                return updateQuantity(conn); // chiamata diretta al metodo di aggiornamento
             } else {
+                // Se non esiste nel carrello, aggiungi il nuovo elemento
                 String insertQuery = "INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, ?)";
                 try (PreparedStatement insertSt = conn.prepareStatement(insertQuery)) {
                     insertSt.setInt(1, user_id);
@@ -134,6 +127,37 @@ public class Cart {
             }
         }
     }
+
+    // Metodo per aggiungere o aggiornare un prodotto nel carrello
+    public boolean addToCart(Connection conn) throws SQLException {
+        String selectQuery = "SELECT id FROM cart WHERE user_id = ? AND product_id = ?";
+        try (PreparedStatement selectSt = conn.prepareStatement(selectQuery)) {
+            selectSt.setInt(1, user_id);
+            selectSt.setInt(2, product_id);
+            ResultSet rs = selectSt.executeQuery();
+
+            if (rs.next()) {
+                int existingId = rs.getInt("id");
+                // Usa direttamente this.quantity invece di sommare
+                String updateQuery = "UPDATE cart SET quantity = ? WHERE id = ?";
+                try (PreparedStatement updateSt = conn.prepareStatement(updateQuery)) {
+                    updateSt.setInt(1, this.quantity);  // Sostituzione diretta della quantità
+                    updateSt.setInt(2, existingId);
+                    return updateSt.executeUpdate() > 0;
+                }
+            } else {
+                // Se non esiste nel carrello, aggiungi il nuovo elemento
+                String insertQuery = "INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, ?)";
+                try (PreparedStatement insertSt = conn.prepareStatement(insertQuery)) {
+                    insertSt.setInt(1, user_id);
+                    insertSt.setInt(2, product_id);
+                    insertSt.setInt(3, quantity);
+                    return insertSt.executeUpdate() > 0;
+                }
+            }
+        }
+    }
+
 
     // Metodo per aggiornare la quantità di un prodotto nel carrello
     public boolean updateQuantity(Connection conn) throws SQLException {
@@ -155,4 +179,14 @@ public class Cart {
             return st.executeUpdate() > 0;
         }
     }
+
+    public static boolean clearCartByUserId(int userId, Connection conn) throws SQLException {
+        String sql = "DELETE FROM cart WHERE user_id = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, userId);
+            int rowsAffected = stmt.executeUpdate();
+            return rowsAffected > 0; // Ritorna true se almeno una riga è stata cancellata
+        }
+    }
+
 }

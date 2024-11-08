@@ -8,11 +8,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import tweb.titancommerce.db.PoolingPersistenceManager;
 import tweb.titancommerce.models.*;
+import tweb.titancommerce.login.LoginService;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -25,112 +27,148 @@ public class OrderManagementServlet extends HttpServlet {
         gson = new Gson();
     }
 
-    // GET: Recupera un ordine, lista di ordini, o ordini filtrati per utente o stato
+    @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");  // Frontend gira su localhost:3000
-        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+        setCorsHeaders(response);
         response.setContentType("application/json");
         PrintWriter out = response.getWriter();
 
+        // Verifica autenticazione utente
+        String username = LoginService.getCurrentLogin(request.getSession());
+        if (username == null || username.isEmpty()) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in");
+            return;
+        }
+
         int orderId = request.getParameter("id") != null ? Integer.parseInt(request.getParameter("id")) : -1;
-        int userId = request.getParameter("userId") != null ? Integer.parseInt(request.getParameter("userId")) : -1;
         String status = request.getParameter("status");
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
+            int userId = Users.getUserIdByUsernameConn(username, conn);
+
             if (orderId > 0) {
-                // Recupera un ordine specifico
                 Orders order = Orders.loadById(orderId, conn);
-                if (order != null) {
+                if (order != null && order.getUser_id() == userId) {
                     out.println(gson.toJson(order));
                 } else {
-                    response.sendError(HttpServletResponse.SC_NOT_FOUND, "Order not found");
+                    response.sendError(HttpServletResponse.SC_FORBIDDEN, "Order not found or unauthorized");
                 }
-            } else if (userId > 0 && status != null) {
-                // Recupera gli ordini per utente e stato
+            } else if (status != null) {
                 List<Orders> orders = Orders.loadByStatus(userId, status, conn);
                 out.println(gson.toJson(orders));
-            } else if (userId > 0) {
-                // Recupera tutti gli ordini per utente
-                List<Orders> orders = Orders.loadByUserId(userId, conn);
-                out.println(gson.toJson(orders));
             } else {
-                // Recupera tutti gli ordini
-                List<Orders> orders = Orders.loadAll(conn);
+                List<Orders> orders = Orders.loadByUserId(userId, conn);
                 out.println(gson.toJson(orders));
             }
         } catch (SQLException e) {
             throw new ServletException("Error retrieving orders", e);
         }
     }
-    // POST: Crea un nuovo ordine
-    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");  // Frontend gira su localhost:3000
-        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type");
-        BufferedReader in = request.getReader();
-        Orders newOrder = gson.fromJson(in, Orders.class);
 
-        try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
-            int orderId = newOrder.saveAsNew(conn);
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        setCorsHeaders(response);
+        response.setContentType("application/json");
+
+        String username = LoginService.getCurrentLogin(request.getSession());
+        if (username == null || username.isEmpty()) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in");
+            return;
+        }
+
+        try (BufferedReader reader = request.getReader();
+             Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
+
+            int userId = Users.getUserIdByUsernameConn(username, conn);
+
+            Orders order = gson.fromJson(reader, Orders.class);
+            order.setUser_id(userId);
+
+            int orderId = order.saveAsNew(conn);
             if (orderId > 0) {
-                response.setStatus(HttpServletResponse.SC_CREATED);
-                response.getWriter().println(gson.toJson(newOrder));
+                response.getWriter().println(gson.toJson(orderId));
             } else {
-                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Order creation failed");
+                response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             }
         } catch (SQLException e) {
             throw new ServletException("Error creating order", e);
         }
     }
 
+    @Override
     protected void doPut(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");  // Sostituisci con il tuo frontend
-        response.setHeader("Access-Control-Allow-Credentials", "true");
-        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        setCorsHeaders(response);
+        response.setContentType("application/json");
 
-        // Ottieni l'userId dai parametri della query string
-        int userId = Integer.parseInt(request.getParameter("userId"));
+        String username = LoginService.getCurrentLogin(request.getSession());
+        if (username == null || username.isEmpty()) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in");
+            return;
+        }
 
-        BufferedReader in = request.getReader();
-        Cart cartItem = gson.fromJson(in, Cart.class);
+        try (BufferedReader reader = request.getReader();
+             Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
 
-        // Aggiorna il carrello utilizzando l'oggetto cartItem e l'userId
-        //cartItem.setUserId(userId);  // Assicura che userId sia impostato correttamente
+            int userId = Users.getUserIdByUsernameConn(username, conn);
+            Orders order = gson.fromJson(reader, Orders.class);
 
-        try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
-            boolean updated = cartItem.updateQuantity(conn);
-            if (updated) {
-                response.setStatus(HttpServletResponse.SC_OK);
-            } else {
-                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Errore aggiornamento quantità nel carrello");
+            if (order.getUser_id() != userId) {
+                response.sendError(HttpServletResponse.SC_FORBIDDEN, "Unauthorized update attempt");
+                return;
             }
+
+            boolean updated = order.saveUpdate(conn);
+            response.getWriter().println(gson.toJson(updated));
         } catch (SQLException e) {
-            throw new ServletException("Errore aggiornamento carrello", e);
+            throw new ServletException("Error updating order", e);
         }
     }
 
-
-    // DELETE: Cancella un ordine
+    @Override
     protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");  // Frontend gira su localhost:3000
-        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type");
-        int orderId = Integer.parseInt(request.getParameter("id"));
+        setCorsHeaders(response);
+        response.setContentType("application/json");
+
+        String username = LoginService.getCurrentLogin(request.getSession());
+        if (username == null || username.isEmpty()) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in");
+            return;
+        }
+
+        int orderId;
+        try {
+            orderId = Integer.parseInt(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid order ID");
+            return;
+        }
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
-            boolean deleted = Orders.deleteById(orderId, conn); // Usa deleteById()
-            if (deleted) {
-                response.setStatus(HttpServletResponse.SC_OK);
-            } else {
-                response.sendError(HttpServletResponse.SC_NOT_FOUND, "Order not found");
+            int userId = Users.getUserIdByUsernameConn(username, conn);
+            Orders order = Orders.loadById(orderId, conn);
+
+            if (order == null || order.getUser_id() != userId) {
+                response.sendError(HttpServletResponse.SC_FORBIDDEN, "Unauthorized or order not found");
+                return;
             }
+
+            boolean deleted = order.delete(conn);
+            response.getWriter().println(gson.toJson(deleted));
         } catch (SQLException e) {
             throw new ServletException("Error deleting order", e);
         }
     }
 
-    public void destroy() {
+    @Override
+    protected void doOptions(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        setCorsHeaders(response);
+        response.setStatus(HttpServletResponse.SC_OK);
+    }
+
+    private void setCorsHeaders(HttpServletResponse response) {
+        response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     }
 }

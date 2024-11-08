@@ -55,7 +55,6 @@ public class UserCartServlet extends HttpServlet {
     protected void doPut(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         setCorsHeaders(response);
 
-        // Controllo l'utente corrente dalla sessione
         String username = LoginService.getCurrentLogin(request.getSession());
         System.out.println("DEBUG: Username ottenuto dalla sessione: " + username);
 
@@ -67,7 +66,6 @@ public class UserCartServlet extends HttpServlet {
         try (BufferedReader reader = request.getReader();
              Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
 
-            // Recupero l'ID dell'utente
             int userId = Users.getUserIdByUsernameConn(username, conn);
             System.out.println("DEBUG: userId recuperato dal database: " + userId);
 
@@ -80,7 +78,6 @@ public class UserCartServlet extends HttpServlet {
                 return;
             }
 
-            // Controllo se l'oggetto Cart è valido
             if (cartItem == null || cartItem.getProduct_id() == 0) {
                 System.out.println("DEBUG: cartItem non valido o product_id mancante");
                 response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Missing product_id");
@@ -90,9 +87,8 @@ public class UserCartServlet extends HttpServlet {
             cartItem.setUser_id(userId);
             System.out.println("DEBUG: Cart dopo aver settato user_id: " + cartItem);
 
-            // Provo ad aggiungere il prodotto al carrello
-            boolean updated = cartItem.addToCart(conn);
-            System.out.println("DEBUG: Risultato di addToCart: " + updated);
+            boolean updated = cartItem.addOrUpdateCart(conn); // Usa addOrUpdateCart invece di addToCart
+            System.out.println("DEBUG: Risultato di addOrUpdateCart: " + updated);
 
             if (updated) {
                 response.setStatus(HttpServletResponse.SC_OK);
@@ -119,30 +115,46 @@ public class UserCartServlet extends HttpServlet {
             return;
         }
 
-        int productId;
-        try {
-            productId = Integer.parseInt(request.getParameter("product_id"));
-        } catch (NumberFormatException e) {
-            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid productId");
-            return;
-        }
+        String productIdParam = request.getParameter("product_id");
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
             int userId = Users.getUserIdByUsernameConn(username, conn);
-            Cart cartItem = new Cart(userId, productId, 0);
-            boolean deleted = cartItem.delete(conn);
 
-            if (deleted) {
-                response.setStatus(HttpServletResponse.SC_OK);
-                response.getWriter().write("Item removed from cart");
+            if (productIdParam == null) {
+                // Cancella tutti gli articoli del carrello per l'utente loggato
+                boolean cleared = Cart.clearCartByUserId(userId, conn);
+                if (cleared) {
+                    response.setStatus(HttpServletResponse.SC_OK);
+                    response.getWriter().write("Cart cleared successfully");
+                } else {
+                    response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error clearing cart");
+                }
             } else {
-                response.sendError(HttpServletResponse.SC_NOT_FOUND, "Item not found in cart");
+                // Cancella un singolo articolo del carrello in base al product_id
+                int productId;
+                try {
+                    productId = Integer.parseInt(productIdParam);
+                } catch (NumberFormatException e) {
+                    response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid productId");
+                    return;
+                }
+
+                Cart cartItem = new Cart(userId, productId, 0);
+                boolean deleted = cartItem.delete(conn);
+
+                if (deleted) {
+                    response.setStatus(HttpServletResponse.SC_OK);
+                    response.getWriter().write("Item removed from cart");
+                } else {
+                    response.sendError(HttpServletResponse.SC_NOT_FOUND, "Item not found in cart");
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
-            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error deleting item from cart");
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Database error occurred");
         }
     }
+
 
     @Override
     protected void doOptions(HttpServletRequest request, HttpServletResponse response) {

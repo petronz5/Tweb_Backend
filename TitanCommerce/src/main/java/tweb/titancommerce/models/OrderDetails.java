@@ -11,23 +11,35 @@ public class OrderDetails {
     private int orderId;
     private int productId;
     private int quantity;
+    private double price; // Aggiungiamo il campo price
 
     // Costruttori, getter e setter
     public OrderDetails() {}
 
-    public OrderDetails(int orderId, int productId, int quantity) {
+    public OrderDetails(int orderId, int productId, int quantity, double price) {
         this.orderId = orderId;
         this.productId = productId;
         this.quantity = quantity;
+        this.price = price;
     }
 
-    // Metodo per salvare i dettagli di un nuovo ordine
+    // Getter e Setter per price
+    public double getPrice() {
+        return price;
+    }
+
+    public void setPrice(double price) {
+        this.price = price;
+    }
+
+    // Salva i dettagli di un nuovo ordine
     public int saveAsNew(Connection conn) throws SQLException {
-        String query = "INSERT INTO order_details (order_id, product_id, quantity) VALUES (?, ?, ?) RETURNING order_id";
+        String query = "INSERT INTO order_details (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?) RETURNING order_id";
         try (PreparedStatement st = conn.prepareStatement(query)) {
             st.setInt(1, orderId);
             st.setInt(2, productId);
             st.setInt(3, quantity);
+            st.setDouble(4, price); // Impostiamo il prezzo
             ResultSet rs = st.executeQuery();
             if (rs.next()) {
                 return rs.getInt("order_id");
@@ -36,28 +48,7 @@ public class OrderDetails {
         return -1;
     }
 
-    // Metodo per aggiornare i dettagli di un ordine
-    public boolean saveUpdate(Connection conn) throws SQLException {
-        String query = "UPDATE order_details SET product_id = ?, quantity = ? WHERE order_id = ?";
-        try (PreparedStatement st = conn.prepareStatement(query)) {
-            st.setInt(1, productId);
-            st.setInt(2, quantity);
-            st.setInt(3, orderId);
-            return st.executeUpdate() > 0;
-        }
-    }
-
-    // Metodo per eliminare i dettagli di un ordine
-    public boolean delete(Connection conn) throws SQLException {
-        String query = "DELETE FROM order_details WHERE order_id = ? AND product_id = ?";
-        try (PreparedStatement st = conn.prepareStatement(query)) {
-            st.setInt(1, orderId);
-            st.setInt(2, productId);
-            return st.executeUpdate() > 0;
-        }
-    }
-
-    // Metodo per caricare i dettagli di un ordine per ID ordine
+    // Carica i dettagli di un ordine per ID ordine
     public static List<OrderDetails> loadByOrderId(int orderId, Connection conn) throws SQLException {
         List<OrderDetails> detailsList = new ArrayList<>();
         String query = "SELECT * FROM order_details WHERE order_id = ?";
@@ -66,13 +57,13 @@ public class OrderDetails {
             ResultSet rs = st.executeQuery();
             while (rs.next()) {
                 detailsList.add(new OrderDetails(rs.getInt("order_id"),
-                        rs.getInt("product_id"), rs.getInt("quantity")));
+                        rs.getInt("product_id"), rs.getInt("quantity"), rs.getDouble("price")));
             }
         }
         return detailsList;
     }
 
-    // Metodo per caricare tutti i dettagli degli ordini
+    // Carica tutti i dettagli degli ordini
     public static List<OrderDetails> loadAll(Connection conn) throws SQLException {
         List<OrderDetails> detailsList = new ArrayList<>();
         String query = "SELECT * FROM order_details";
@@ -80,7 +71,7 @@ public class OrderDetails {
              ResultSet rs = st.executeQuery()) {
             while (rs.next()) {
                 detailsList.add(new OrderDetails(rs.getInt("order_id"),
-                        rs.getInt("product_id"), rs.getInt("quantity")));
+                        rs.getInt("product_id"), rs.getInt("quantity"), rs.getDouble("price")));
             }
         }
         return detailsList;
