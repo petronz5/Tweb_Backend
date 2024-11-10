@@ -41,12 +41,23 @@ public class UserCartServlet extends HttpServlet {
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
             int userId = Users.getUserIdByUsernameConn(username, conn);
 
+            if (userId == 0) {
+                response.sendError(HttpServletResponse.SC_NOT_FOUND, "User not found");
+                return;
+            }
+
             List<Cart> cartItems = Cart.loadByUserId(userId, conn);
             String cartJson = gson.toJson(cartItems);
+
+            if (cartItems.isEmpty()) {
+                response.sendError(HttpServletResponse.SC_NOT_FOUND, "No items in the cart");
+                return;
+            }
+
             response.getWriter().write(cartJson);
             response.setStatus(HttpServletResponse.SC_OK);
         } catch (SQLException e) {
-            e.printStackTrace();
+            e.printStackTrace();  // per debugging
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error retrieving cart items");
         }
     }
@@ -56,8 +67,6 @@ public class UserCartServlet extends HttpServlet {
         setCorsHeaders(response);
 
         String username = LoginService.getCurrentLogin(request.getSession());
-        System.out.println("DEBUG: Username ottenuto dalla sessione: " + username);
-
         if (username == null || username.isEmpty()) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in");
             return;
@@ -67,43 +76,34 @@ public class UserCartServlet extends HttpServlet {
              Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
 
             int userId = Users.getUserIdByUsernameConn(username, conn);
-            System.out.println("DEBUG: userId recuperato dal database: " + userId);
 
             Cart cartItem;
             try {
                 cartItem = gson.fromJson(reader, Cart.class);
-                System.out.println("DEBUG: Oggetto Cart deserializzato: " + cartItem);
             } catch (JsonSyntaxException e) {
                 response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid JSON format");
                 return;
             }
 
             if (cartItem == null || cartItem.getProduct_id() == 0) {
-                System.out.println("DEBUG: cartItem non valido o product_id mancante");
                 response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Missing product_id");
                 return;
             }
 
             cartItem.setUser_id(userId);
-            System.out.println("DEBUG: Cart dopo aver settato user_id: " + cartItem);
 
-            boolean updated = cartItem.addOrUpdateCart(conn); // Usa addOrUpdateCart invece di addToCart
-            System.out.println("DEBUG: Risultato di addOrUpdateCart: " + updated);
-
+            boolean updated = cartItem.addOrUpdateCart(conn);
             if (updated) {
                 response.setStatus(HttpServletResponse.SC_OK);
                 response.getWriter().write("Cart updated successfully");
-                System.out.println("DEBUG: Cart aggiornato con successo");
             } else {
                 response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to update cart");
-                System.out.println("DEBUG: Fallimento nell'aggiornamento del cart");
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            e.printStackTrace();  // per debugging
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Database error occurred");
         }
     }
-
 
     @Override
     protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -121,7 +121,6 @@ public class UserCartServlet extends HttpServlet {
             int userId = Users.getUserIdByUsernameConn(username, conn);
 
             if (productIdParam == null) {
-                // Cancella tutti gli articoli del carrello per l'utente loggato
                 boolean cleared = Cart.clearCartByUserId(userId, conn);
                 if (cleared) {
                     response.setStatus(HttpServletResponse.SC_OK);
@@ -130,7 +129,6 @@ public class UserCartServlet extends HttpServlet {
                     response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error clearing cart");
                 }
             } else {
-                // Cancella un singolo articolo del carrello in base al product_id
                 int productId;
                 try {
                     productId = Integer.parseInt(productIdParam);
@@ -150,11 +148,10 @@ public class UserCartServlet extends HttpServlet {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            e.printStackTrace();  // per debugging
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Database error occurred");
         }
     }
-
 
     @Override
     protected void doOptions(HttpServletRequest request, HttpServletResponse response) {

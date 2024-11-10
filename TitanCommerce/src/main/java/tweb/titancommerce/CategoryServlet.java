@@ -31,10 +31,20 @@ public class CategoryServlet extends HttpServlet {
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
             List<Category> categories = Category.loadAllCategories(conn);
-            System.out.println("Categorie caricate: " + gson.toJson(categories));
-            response.getWriter().println(gson.toJson(categories));
+            if (categories == null || categories.isEmpty()) {
+                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                response.getWriter().println("{\"error\": \"No categories found\"}");
+            } else {
+                response.getWriter().println(gson.toJson(categories));
+            }
         } catch (SQLException e) {
-            throw new ServletException("Error retrieving categories", e);
+            e.printStackTrace();
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            response.getWriter().println("{\"error\": \"Internal server error while retrieving categories\"}");
+        } catch (Exception e) {
+            e.printStackTrace();
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            response.getWriter().println("{\"error\": \"Unexpected error occurred\"}");
         }
     }
 }

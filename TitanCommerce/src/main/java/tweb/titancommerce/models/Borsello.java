@@ -12,14 +12,16 @@ public class Borsello {
     private int user_id;
     private String metodo_pagamento;
     private double importo;
+    private String image_payment;
 
     public Borsello() {}
 
-    public Borsello(int id, int user_id, String metodo_pagamento, double importo) {
+    public Borsello(int id, int user_id, String metodo_pagamento, double importo, String image_payment) {
         this.id = id;
         this.user_id = user_id;
         this.metodo_pagamento = metodo_pagamento;
         this.importo = importo;
+        this.image_payment = image_payment;
     }
 
     // Getters e Setters
@@ -55,16 +57,26 @@ public class Borsello {
         this.importo = importo;
     }
 
+    public String getImage_payment() {
+        return image_payment;
+    }
+
+    public void setImage_payment(String image_payment) {
+        this.image_payment = image_payment;
+    }
+
     // Metodo per salvare un nuovo metodo di pagamento
     public boolean savePayment(Connection conn) throws SQLException {
-        String sql = "INSERT INTO borsello (user_id, metodo_pagamento, importo) VALUES (?, ?, ?)";
+        String sql = "INSERT INTO borsello (user_id, metodo_pagamento, importo, image_payment) VALUES (?, ?, ?, ?)";
         try (PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setInt(1, this.user_id);
             statement.setString(2, this.metodo_pagamento);
             statement.setDouble(3, this.importo);
+            statement.setString(4, this.image_payment);
             return statement.executeUpdate() > 0;
         }
     }
+
 
     // Metodo statico per ottenere i metodi di pagamento per un utente
     public static List<Borsello> getPaymentMethodsByUserId(int userId, Connection conn) throws SQLException {
@@ -77,11 +89,15 @@ public class Borsello {
                 int id = resultSet.getInt("id");
                 String metodoPagamento = resultSet.getString("metodo_pagamento");
                 double importo = resultSet.getDouble("importo");
-                methods.add(new Borsello(id, userId, metodoPagamento, importo));
+                String imagePayment = resultSet.getString("image_payment"); // Prende il campo image_payment
+
+                // Aggiunta del nuovo campo al costruttore
+                methods.add(new Borsello(id, userId, metodoPagamento, importo, imagePayment));
             }
         }
         return methods;
     }
+
 
     public boolean updateImporto(Connection conn) throws SQLException {
         String sql = "UPDATE borsello SET importo = ? WHERE user_id = ? AND metodo_pagamento = ?";

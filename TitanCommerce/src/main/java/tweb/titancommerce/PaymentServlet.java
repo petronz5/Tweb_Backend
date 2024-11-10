@@ -33,11 +33,11 @@ public class PaymentServlet extends HttpServlet {
         response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     }
 
+    @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         setCorsHeaders(response);
         response.setContentType("application/json");
 
-        // Recupera lo username dalla sessione
         String username = LoginService.getCurrentLogin(request.getSession());
         if (username == null || username.isEmpty()) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in");
@@ -45,23 +45,32 @@ public class PaymentServlet extends HttpServlet {
         }
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
-            // Ottieni user_id dal database usando username
             int userId = Users.getUserIdByUsernameConn(username, conn);
+            if (userId == -1) {
+                response.sendError(HttpServletResponse.SC_NOT_FOUND, "User not found");
+                return;
+            }
 
             List<Borsello> paymentMethods = Borsello.getPaymentMethodsByUserId(userId, conn);
+            if (paymentMethods.isEmpty()) {
+                response.sendError(HttpServletResponse.SC_NOT_FOUND, "No payment methods found");
+                return;
+            }
+
             String json = gson.toJson(paymentMethods);
             response.getWriter().write(json);
             response.setStatus(HttpServletResponse.SC_OK);
         } catch (SQLException e) {
-            throw new ServletException("Errore nel recupero dei metodi di pagamento", e);
+            e.printStackTrace(); // Debugging output
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error retrieving payment methods");
         }
     }
 
+    @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         setCorsHeaders(response);
         response.setContentType("application/json");
 
-        // Recupera lo username dalla sessione
         String username = LoginService.getCurrentLogin(request.getSession());
         if (username == null || username.isEmpty()) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in");
@@ -72,29 +81,32 @@ public class PaymentServlet extends HttpServlet {
         Borsello newBorsello = gson.fromJson(in, Borsello.class);
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
-            // Ottieni user_id dal database usando username
             int userId = Users.getUserIdByUsernameConn(username, conn);
+            if (userId == -1) {
+                response.sendError(HttpServletResponse.SC_NOT_FOUND, "User not found");
+                return;
+            }
+
             newBorsello.setUser_id(userId);
 
-            boolean success = newBorsello.savePayment(conn);
-            if (success) {
+            if (newBorsello.savePayment(conn)) {
                 response.setStatus(HttpServletResponse.SC_CREATED);
                 response.getWriter().println(gson.toJson(newBorsello));
             } else {
-                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Payment method creation failed");
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to create payment method");
             }
         } catch (SQLException e) {
-            throw new ServletException("Error creating payment method", e);
+            e.printStackTrace(); // Debugging output
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Database error during payment creation");
         }
     }
 
+    @Override
     protected void doPut(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         setCorsHeaders(response);
         response.setContentType("application/json");
 
-        // Recupera lo username dalla sessione
-        String username =
-                LoginService.getCurrentLogin(request.getSession());
+        String username = LoginService.getCurrentLogin(request.getSession());
         if (username == null || username.isEmpty()) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in");
             return;
@@ -104,19 +116,23 @@ public class PaymentServlet extends HttpServlet {
         Borsello updatedBorsello = gson.fromJson(in, Borsello.class);
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
-            // Ottieni user_id dal database usando username
             int userId = Users.getUserIdByUsernameConn(username, conn);
+            if (userId == -1) {
+                response.sendError(HttpServletResponse.SC_NOT_FOUND, "User not found");
+                return;
+            }
+
             updatedBorsello.setUser_id(userId);
 
-            boolean success = updatedBorsello.updateImporto(conn);
-            if (success) {
+            if (updatedBorsello.updateImporto(conn)) {
                 response.setStatus(HttpServletResponse.SC_OK);
                 response.getWriter().println(gson.toJson(updatedBorsello));
             } else {
-                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Payment update failed");
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to update payment method");
             }
         } catch (SQLException e) {
-            throw new ServletException("Error updating payment method", e);
+            e.printStackTrace(); // Debugging output
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Database error during payment update");
         }
     }
 

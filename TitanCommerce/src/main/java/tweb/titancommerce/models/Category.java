@@ -84,8 +84,13 @@ public class Category {
                 String image_url = rs.getString("image_url");
                 categories.add(new Category(id, name, image_url));
             }
+        } catch (SQLException e) {
+            System.err.println("Error loading categories from database: " + e.getMessage());
+            e.printStackTrace();
+            throw e; 
         }
         return categories;
     }
+
 
 }
