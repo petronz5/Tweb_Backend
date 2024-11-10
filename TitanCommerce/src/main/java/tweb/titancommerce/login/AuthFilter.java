@@ -28,7 +28,7 @@ public class AuthFilter extends HttpFilter {
             return;
         }
 
-        // Se l'utente non è autenticato, invia un errore 401 Unauthorized
+        // Se l'utente non è autenticato, invia un errore 401 Unauthorized.
         res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not authenticated");
     }
 }
