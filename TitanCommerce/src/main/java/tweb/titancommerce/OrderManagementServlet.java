@@ -14,7 +14,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -50,18 +49,33 @@ public class OrderManagementServlet extends HttpServlet {
                 Orders order = Orders.loadById(orderId, conn);
                 if (order != null && order.getUser_id() == userId) {
                     out.println(gson.toJson(order));
+                    response.setStatus(HttpServletResponse.SC_OK);
+                } else if (order == null) {
+                    response.sendError(HttpServletResponse.SC_NOT_FOUND, "Order not found");
                 } else {
-                    response.sendError(HttpServletResponse.SC_FORBIDDEN, "Order not found or unauthorized");
+                    response.sendError(HttpServletResponse.SC_FORBIDDEN, "Unauthorized access to the order");
                 }
             } else if (status != null) {
                 List<Orders> orders = Orders.loadByStatus(userId, status, conn);
-                out.println(gson.toJson(orders));
+                if (!orders.isEmpty()) {
+                    out.println(gson.toJson(orders));
+                    response.setStatus(HttpServletResponse.SC_OK);
+                } else {
+                    response.sendError(HttpServletResponse.SC_NOT_FOUND, "No orders found with the specified status");
+                }
             } else {
                 List<Orders> orders = Orders.loadByUserId(userId, conn);
-                out.println(gson.toJson(orders));
+                if (!orders.isEmpty()) {
+                    out.println(gson.toJson(orders));
+                    response.setStatus(HttpServletResponse.SC_OK);
+                } else {
+                    response.sendError(HttpServletResponse.SC_NOT_FOUND, "No orders found for the user");
+                }
             }
         } catch (SQLException e) {
             throw new ServletException("Error retrieving orders", e);
+        } finally {
+            out.close();
         }
     }
 
@@ -87,8 +101,9 @@ public class OrderManagementServlet extends HttpServlet {
             int orderId = order.saveAsNew(conn);
             if (orderId > 0) {
                 response.getWriter().println(gson.toJson(orderId));
+                response.setStatus(HttpServletResponse.SC_CREATED);
             } else {
-                response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Order creation failed");
             }
         } catch (SQLException e) {
             throw new ServletException("Error creating order", e);
@@ -112,13 +127,25 @@ public class OrderManagementServlet extends HttpServlet {
             int userId = Users.getUserIdByUsernameConn(username, conn);
             Orders order = gson.fromJson(reader, Orders.class);
 
-            if (order.getUser_id() != userId) {
+            // Verifica se l'ordine esiste
+            Orders existingOrder = Orders.loadById(order.getId(), conn);
+            if (existingOrder == null) {
+                response.sendError(HttpServletResponse.SC_NOT_FOUND, "Order not found");
+                return;
+            }
+
+            if (existingOrder.getUser_id() != userId) {
                 response.sendError(HttpServletResponse.SC_FORBIDDEN, "Unauthorized update attempt");
                 return;
             }
 
             boolean updated = order.saveUpdate(conn);
-            response.getWriter().println(gson.toJson(updated));
+            if (updated) {
+                response.getWriter().println(gson.toJson(updated));
+                response.setStatus(HttpServletResponse.SC_OK);
+            } else {
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Order update failed");
+            }
         } catch (SQLException e) {
             throw new ServletException("Error updating order", e);
         }
@@ -147,13 +174,23 @@ public class OrderManagementServlet extends HttpServlet {
             int userId = Users.getUserIdByUsernameConn(username, conn);
             Orders order = Orders.loadById(orderId, conn);
 
-            if (order == null || order.getUser_id() != userId) {
+            if (order == null) {
+                response.sendError(HttpServletResponse.SC_NOT_FOUND, "Order not found");
+                return;
+            }
+
+            if (order.getUser_id() != userId) {
                 response.sendError(HttpServletResponse.SC_FORBIDDEN, "Unauthorized or order not found");
                 return;
             }
 
             boolean deleted = order.delete(conn);
-            response.getWriter().println(gson.toJson(deleted));
+            if (deleted) {
+                response.getWriter().println(gson.toJson(deleted));
+                response.setStatus(HttpServletResponse.SC_OK);
+            } else {
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Order deletion failed");
+            }
         } catch (SQLException e) {
             throw new ServletException("Error deleting order", e);
         }
