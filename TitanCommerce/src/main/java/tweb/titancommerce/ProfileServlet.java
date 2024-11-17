@@ -39,11 +39,17 @@ public class ProfileServlet extends HttpServlet {
             System.out.println("Session not found or user not logged in");
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in.");
             return;
-        }else{
+        } else {
             System.out.println("User ID: " + session.getAttribute("id"));
         }
 
-        int userId = (int) session.getAttribute("id");
+        // Assicuriamoci che l'ID utente sia valido
+        Object userIdObj = session.getAttribute("id");
+        if (userIdObj == null || !(userIdObj instanceof Integer)) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "User ID not found.");
+            return;
+        }
+        int userId = (int) userIdObj;
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
             // Recupera i dettagli dell'utente dal database
@@ -60,13 +66,16 @@ public class ProfileServlet extends HttpServlet {
                 userDetails.addProperty("role", user.getRole());
                 userDetails.addProperty("sesso", user.getSesso());
 
-
                 out.println(gson.toJson(userDetails));
+                response.setStatus(HttpServletResponse.SC_OK); // Imposta lo stato a 200 OK
             } else {
                 response.sendError(HttpServletResponse.SC_NOT_FOUND, "User not found.");
             }
         } catch (SQLException e) {
-            throw new ServletException("Error retrieving user profile", e);
+            e.printStackTrace();
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error retrieving user profile.");
+        } finally {
+            out.close();
         }
     }
 
