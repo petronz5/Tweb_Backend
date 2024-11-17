@@ -14,6 +14,8 @@ public class Cart {
     private int quantity;
     private String productName;
     private double productPrice;
+    private String description;
+    private String url_products;
 
     // Costruttori, getter e setter
     public Cart() {}
@@ -79,10 +81,18 @@ public class Cart {
         this.productPrice = productPrice;
     }
 
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public void setUrl_products(String url_products) {
+        this.url_products = url_products;
+    }
+
     // Metodo statico per caricare il carrello dal database
     public static List<Cart> loadByUserId(int user_id, Connection conn) throws SQLException {
         List<Cart> cartList = new ArrayList<>();
-        String query = "SELECT c.id, c.user_id, c.product_id, c.quantity, p.name AS product_name, p.price AS product_price " +
+        String query = "SELECT c.id, c.user_id, c.product_id, c.quantity, p.description AS product_description , p.url_products AS product_url, p.name AS product_name, p.price AS product_price " +
                 "FROM cart c " +
                 "JOIN products p ON c.product_id = p.id " +
                 "WHERE c.user_id = ?";
@@ -98,6 +108,8 @@ public class Cart {
                 );
                 cartItem.setProductName(rs.getString("product_name"));
                 cartItem.setProductPrice(rs.getDouble("product_price"));
+                cartItem.setDescription(rs.getString("product_description"));
+                cartItem.setUrl_products(rs.getString("product_url"));
                 cartList.add(cartItem);
             }
         }
