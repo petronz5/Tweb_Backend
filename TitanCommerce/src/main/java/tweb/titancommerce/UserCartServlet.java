@@ -50,7 +50,9 @@ public class UserCartServlet extends HttpServlet {
             String cartJson = gson.toJson(cartItems);
 
             if (cartItems.isEmpty()) {
-                response.sendError(HttpServletResponse.SC_NOT_FOUND, "No items in the cart");
+                response.setStatus(HttpServletResponse.SC_OK);
+                response.getWriter().write("[]"); // Restituisce un array vuoto
+                System.out.println("Carrello vuoto per user_id: " + userId);
                 return;
             }
 
@@ -112,46 +114,56 @@ public class UserCartServlet extends HttpServlet {
         String username = LoginService.getCurrentLogin(request.getSession());
         if (username == null || username.isEmpty()) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in");
+            System.out.println("Tentativo di accesso non autorizzato durante la rimozione dal carrello.");
             return;
         }
 
         String productIdParam = request.getParameter("product_id");
+        System.out.println("Ricevuta richiesta DELETE per product_id: " + productIdParam + " da utente: " + username);
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
             int userId = Users.getUserIdByUsernameConn(username, conn);
+            System.out.println("User ID recuperato: " + userId);
 
             if (productIdParam == null) {
+                System.out.println("Product_id non fornito. Tentativo di svuotare il carrello.");
                 boolean cleared = Cart.clearCartByUserId(userId, conn);
-                if (cleared) {
-                    response.setStatus(HttpServletResponse.SC_OK);
-                    response.getWriter().write("Cart cleared successfully");
-                } else {
-                    response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error clearing cart");
-                }
+                response.setStatus(HttpServletResponse.SC_OK);
+                response.getWriter().write("Cart cleared successfully");
+                System.out.println("Carrello svuotato con successo per user_id: " + userId);
             } else {
                 int productId;
                 try {
                     productId = Integer.parseInt(productIdParam);
+                    System.out.println("Product ID parsato: " + productId);
                 } catch (NumberFormatException e) {
                     response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid productId");
+                    System.out.println("Product_id invalido: " + productIdParam);
                     return;
                 }
 
                 Cart cartItem = new Cart(userId, productId, 0);
+                System.out.println("Tentativo di rimuovere product_id: " + productId + " dal carrello dell'utente: " + userId);
                 boolean deleted = cartItem.delete(conn);
+                System.out.println("Rimozione product_id " + productId + " riuscita: " + deleted);
 
                 if (deleted) {
                     response.setStatus(HttpServletResponse.SC_OK);
                     response.getWriter().write("Item removed from cart");
+                    System.out.println("Prodotto_id " + productId + " rimosso con successo dal carrello.");
                 } else {
                     response.sendError(HttpServletResponse.SC_NOT_FOUND, "Item not found in cart");
+                    System.out.println("Prodotto_id " + productId + " non trovato nel carrello.");
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();  // per debugging
+            System.err.println("Errore nella gestione del carrello: " + e.getMessage());
+            e.printStackTrace();
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Database error occurred");
         }
     }
+
+
 
     @Override
     protected void doOptions(HttpServletRequest request, HttpServletResponse response) {

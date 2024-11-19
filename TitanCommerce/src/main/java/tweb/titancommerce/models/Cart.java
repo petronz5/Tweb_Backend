@@ -196,9 +196,12 @@ public class Cart {
         String sql = "DELETE FROM cart WHERE user_id = ?";
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, userId);
-            int rowsAffected = stmt.executeUpdate();
-            return rowsAffected > 0; // Ritorna true se almeno una riga è stata cancellata
+            stmt.executeUpdate();
+            return true;
         }
     }
+
+
+
 
 }
