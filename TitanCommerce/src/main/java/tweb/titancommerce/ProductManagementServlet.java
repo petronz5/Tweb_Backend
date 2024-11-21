@@ -6,8 +6,10 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import tweb.titancommerce.db.PoolingPersistenceManager;
 import tweb.titancommerce.models.Products;
+import tweb.titancommerce.models.Users;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -97,6 +99,12 @@ public class ProductManagementServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         setCorsHeaders(response);
 
+        // Controllo di autorizzazione
+        if (!isAdmin(request)) {
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied. Admins only.");
+            return;
+        }
+
         BufferedReader in = request.getReader();
         Products newProduct = gson.fromJson(in, Products.class);
 
@@ -117,6 +125,12 @@ public class ProductManagementServlet extends HttpServlet {
     // PUT: Aggiorna un prodotto esistente
     protected void doPut(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         setCorsHeaders(response);
+
+        // Controllo di autorizzazione
+        if (!isAdmin(request)) {
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied. Admins only.");
+            return;
+        }
 
         BufferedReader in = request.getReader();
         Products product = gson.fromJson(in, Products.class);
@@ -145,6 +159,12 @@ public class ProductManagementServlet extends HttpServlet {
     // DELETE: Cancella un prodotto
     protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         setCorsHeaders(response);
+
+        // Controllo di autorizzazione
+        if (!isAdmin(request)) {
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied. Admins only.");
+            return;
+        }
 
         String productIdParam = request.getParameter("id");
         if (productIdParam == null) {
@@ -191,6 +211,27 @@ public class ProductManagementServlet extends HttpServlet {
         response.setHeader("Access-Control-Allow-Credentials", "true");
         response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
         response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    }
+
+    // Metodo per controllare se l'utente è admin
+    private boolean isAdmin(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session == null) {
+            return false;
+        }
+
+        String username = (String) session.getAttribute("username");
+        if (username == null) {
+            return false;
+        }
+
+        try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
+            String role = Users.getRoleByUsername(username);
+            return "admin".equalsIgnoreCase(role);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
     public void destroy() {
