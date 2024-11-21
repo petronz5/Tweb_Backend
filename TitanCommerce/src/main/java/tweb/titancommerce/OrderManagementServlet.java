@@ -36,44 +36,69 @@ public class OrderManagementServlet extends HttpServlet {
         String username = LoginService.getCurrentLogin(request.getSession());
         if (username == null || username.isEmpty()) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not logged in");
+            System.out.println("Tentativo di accesso non autorizzato.");
             return;
         }
 
-        int orderId = request.getParameter("id") != null ? Integer.parseInt(request.getParameter("id")) : -1;
+        String orderIdParam = request.getParameter("id");
+        int orderId = -1;
+        if (orderIdParam != null) {
+            try {
+                orderId = Integer.parseInt(orderIdParam);
+            } catch (NumberFormatException e) {
+                response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid order ID");
+                System.out.println("Order ID invalido: " + orderIdParam);
+                return;
+            }
+        }
+
         String status = request.getParameter("status");
 
         try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
             int userId = Users.getUserIdByUsernameConn(username, conn);
+            System.out.println("User ID recuperato: " + userId);
 
             if (orderId > 0) {
                 Orders order = Orders.loadById(orderId, conn);
                 if (order != null && order.getUser_id() == userId) {
-                    out.println(gson.toJson(order));
+                    String orderJson = gson.toJson(order);
+                    out.println(orderJson);
                     response.setStatus(HttpServletResponse.SC_OK);
+                    System.out.println("Ordine con ID " + orderId + " recuperato con successo per user_id: " + userId);
                 } else if (order == null) {
                     response.sendError(HttpServletResponse.SC_NOT_FOUND, "Order not found");
+                    System.out.println("Ordine non trovato con ID: " + orderId);
                 } else {
                     response.sendError(HttpServletResponse.SC_FORBIDDEN, "Unauthorized access to the order");
+                    System.out.println("Accesso non autorizzato all'ordine con ID: " + orderId);
                 }
             } else if (status != null) {
                 List<Orders> orders = Orders.loadByStatus(userId, status, conn);
                 if (!orders.isEmpty()) {
-                    out.println(gson.toJson(orders));
+                    String ordersJson = gson.toJson(orders);
+                    out.println(ordersJson);
                     response.setStatus(HttpServletResponse.SC_OK);
+                    System.out.println("Ordini con status '" + status + "' recuperati con successo per user_id: " + userId);
                 } else {
                     response.sendError(HttpServletResponse.SC_NOT_FOUND, "No orders found with the specified status");
+                    System.out.println("Nessun ordine trovato con status: " + status + " per user_id: " + userId);
                 }
             } else {
                 List<Orders> orders = Orders.loadByUserId(userId, conn);
                 if (!orders.isEmpty()) {
-                    out.println(gson.toJson(orders));
+                    String ordersJson = gson.toJson(orders);
+                    out.println(ordersJson);
                     response.setStatus(HttpServletResponse.SC_OK);
+                    System.out.println("Ordini recuperati con successo per user_id: " + userId);
                 } else {
                     response.sendError(HttpServletResponse.SC_NOT_FOUND, "No orders found for the user");
+                    System.out.println("Nessun ordine trovato per user_id: " + userId);
                 }
             }
         } catch (SQLException e) {
-            throw new ServletException("Error retrieving orders", e);
+            System.err.println("Errore nel recupero degli ordini: " + e.getMessage());
+            e.printStackTrace();
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error retrieving orders");
         } finally {
             out.close();
         }
@@ -98,14 +123,67 @@ public class OrderManagementServlet extends HttpServlet {
             Orders order = gson.fromJson(reader, Orders.class);
             order.setUser_id(userId);
 
+            if (order.getItems() == null || order.getItems().isEmpty()) {
+                response.sendError(HttpServletResponse.SC_BAD_REQUEST, "No items in order.");
+                return;
+            }
+
+            // Inizia una transazione
+            conn.setAutoCommit(false);
+
             int orderId = order.saveAsNew(conn);
             if (orderId > 0) {
-                response.getWriter().println(gson.toJson(orderId));
-                response.setStatus(HttpServletResponse.SC_CREATED);
+                boolean allItemsSaved = true;
+
+                for (OrderItems item : order.getItems()) {
+                    item.setOrder_id(orderId);
+
+                    // Decrementa lo stock
+                    Products product = Products.loadById(item.getProduct_id(), conn);
+                    if (product != null) {
+                        boolean stockUpdated = product.decrementStock(item.getQuantity(), conn);
+                        if (!stockUpdated) {
+                            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Insufficient stock for product ID: " + item.getProduct_id());
+                            conn.rollback();
+                            return;
+                        }
+                    } else {
+                        response.sendError(HttpServletResponse.SC_NOT_FOUND, "Product not found: ID " + item.getProduct_id());
+                        conn.rollback();
+                        return;
+                    }
+
+                    // Salva l'articolo dell'ordine
+                    boolean itemSaved = item.saveAsNew(conn);
+                    if (!itemSaved) {
+                        allItemsSaved = false;
+                        break;
+                    }
+                }
+
+                if (allItemsSaved) {
+                    // Svuota il carrello dell'utente
+                    boolean cartCleared = Cart.clearCartByUserId(userId, conn);
+                    if (!cartCleared) {
+                        conn.rollback();
+                        response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to clear cart after order creation");
+                        return;
+                    }
+
+                    // Commit della transazione
+                    conn.commit();
+                    response.getWriter().println(gson.toJson(orderId));
+                    response.setStatus(HttpServletResponse.SC_CREATED);
+                } else {
+                    conn.rollback();
+                    response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to save order items");
+                }
             } else {
+                conn.rollback();
                 response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Order creation failed");
             }
         } catch (SQLException e) {
+            e.printStackTrace();
             throw new ServletException("Error creating order", e);
         }
     }

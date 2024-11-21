@@ -1,5 +1,7 @@
 package tweb.titancommerce.models;
 
+import jakarta.persistence.criteria.Order;
+
 import java.math.BigDecimal;
 import java.sql.*;
 import java.util.ArrayList;
@@ -11,6 +13,7 @@ public class Orders {
     private BigDecimal total;
     private String createdAt; // Cambiato da LocalDateTime a String
     private String status;
+    private List<OrderItems> items;
 
     // Costruttore vuoto e costruttore completo
     public Orders() {}
@@ -29,10 +32,17 @@ public class Orders {
     public BigDecimal getTotal() { return total; }
     public String getCreatedAt() { return createdAt; }
     public String getStatus() { return status; }
+    public List<OrderItems> getItems() {
+        return items;
+    }
+
     public void setUser_id(int user_id) { this.user_id = user_id; }
     public void setTotal(BigDecimal total) { this.total = total; }
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
     public void setStatus(String status) { this.status = status; }
+    public void setItems(List<OrderItems> items) {
+        this.items = items;
+    }
 
     // Metodo per salvare un nuovo ordine
     public int saveAsNew(Connection conn) throws SQLException {
@@ -110,9 +120,10 @@ public class Orders {
         return orderList;
     }
 
-    // Metodo per caricare un ordine in base all'ID
+    // Metodo per caricare un ordine in base all'ID, includendo i prodotti
     public static Orders loadById(int orderId, Connection conn) throws SQLException {
         String query = "SELECT * FROM orders WHERE id = ?";
+        Orders order = null;
         try (PreparedStatement st = conn.prepareStatement(query)) {
             st.setInt(1, orderId);
             ResultSet rs = st.executeQuery();
@@ -120,19 +131,23 @@ public class Orders {
                 // Converti il Timestamp in String per createdAt
                 String createdAt = rs.getTimestamp("created_at").toString();
 
-                return new Orders(
+                order = new Orders(
                         rs.getInt("id"),
                         rs.getInt("user_id"),
                         rs.getBigDecimal("total"),
                         createdAt,
                         rs.getString("status")
                 );
+
+                // Carica gli articoli dell'ordine
+                List<OrderItems> items = OrderItems.loadByOrderId(orderId, conn);
+                order.setItems(items);
             }
         }
-        return null;
+        return order;
     }
 
-    // Metodo per caricare ordini per utente
+    // Metodo per caricare ordini per utente, includendo i prodotti
     public static List<Orders> loadByUserId(int userId, Connection conn) throws SQLException {
         List<Orders> orderList = new ArrayList<>();
         String query = "SELECT * FROM orders WHERE user_id = ?";
@@ -150,11 +165,17 @@ public class Orders {
                         createdAt,
                         rs.getString("status")
                 );
+
+                // Carica gli articoli dell'ordine
+                List<OrderItems> items = OrderItems.loadByOrderId(order.getId(), conn);
+                order.setItems(items);
+
                 orderList.add(order);
             }
         }
         return orderList;
     }
+
 
     // Metodo per caricare tutti gli ordini
     public static List<Orders> loadAll(Connection conn) throws SQLException {
