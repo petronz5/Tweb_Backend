@@ -9,7 +9,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import tweb.titancommerce.db.PoolingPersistenceManager;
 import tweb.titancommerce.models.Products;
-import tweb.titancommerce.models.Users;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -213,25 +212,15 @@ public class ProductManagementServlet extends HttpServlet {
         response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     }
 
-    // Metodo per controllare se l'utente è admin
+    // Metodo per controllare se l'utente è admin basandosi sui dati della sessione
     private boolean isAdmin(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
         if (session == null) {
             return false;
         }
 
-        String username = (String) session.getAttribute("username");
-        if (username == null) {
-            return false;
-        }
-
-        try (Connection conn = PoolingPersistenceManager.getPersistenceManager().getConnection()) {
-            String role = Users.getRoleByUsername(username);
-            return "admin".equalsIgnoreCase(role);
-        } catch (SQLException e) {
-            e.printStackTrace();
-            return false;
-        }
+        String role = (String) session.getAttribute("role");
+        return "admin".equalsIgnoreCase(role);
     }
 
     public void destroy() {
